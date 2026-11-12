@@ -1,0 +1,5 @@
+# 원본 데이터(휴대폰 번호 포함)는 올리지 않음
+content/
+__pycache__/
+*.pyc
+src/media/
