@@ -26,6 +26,7 @@ export type Doc = {
   department_name: string | null;
   line_name: string | null;
   is_jeongyeol: boolean;
+  self_approved: boolean;
   redraft_of: string | null;
   created_at: string;
   submitted_at: string | null;

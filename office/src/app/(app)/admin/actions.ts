@@ -342,9 +342,25 @@ export async function addLine(fd: FormData) {
   }
   const { error } = await supabase
     .from("approval_lines")
-    .insert({ name, department_id, is_default, is_jeongyeol: fd.get("is_jeongyeol") === "on" });
+    .insert({
+      name,
+      department_id,
+      is_default,
+      is_jeongyeol: fd.get("is_jeongyeol") === "on",
+      allow_self_approval: fd.get("allow_self_approval") === "on",
+    });
   if (error) fail(fd, explain(error, "결재선을 만들지 못했어요."));
   ok(fd, `'${name}' 결재선을 만들었어요. 이제 단계를 추가해 주세요.`);
+}
+
+// 본인 결재 허용 켜기/끄기 (보조금 사업 기록용처럼 기안자가 혼자 결재로 끝내도 되는 결재선)
+export async function setLineSelfApproval(fd: FormData) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const on = str(fd, "on") === "true";
+  const { error } = await supabase.from("approval_lines").update({ allow_self_approval: on }).eq("id", str(fd, "id"));
+  if (error) fail(fd, explain(error, "바꾸지 못했어요."));
+  ok(fd, on ? "이 결재선은 이제 본인 결재로 끝낼 수 있어요." : "본인 결재 허용을 껐어요.");
 }
 
 export async function setDefaultLine(fd: FormData) {

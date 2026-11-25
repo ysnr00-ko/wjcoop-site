@@ -23,7 +23,15 @@ function stepBox(s: DocStep | PreviewStep, i: number): Box {
   const base = { key: `${s.seq}-${s.position_name}-${i}`, position: s.position_name, name: s.assignee_name };
   switch (s.status) {
     case "approved":
-      return { ...base, tone: "done", state: s.step_type === "cooperate" ? ("disagree" in s && s.disagree ? "이견" : "확인") : "결재", when: "acted_at" in s ? s.acted_at : null };
+      return {
+        ...base,
+        tone: "done",
+        state:
+          s.step_type === "cooperate"
+            ? "disagree" in s && s.disagree ? "이견" : "확인"
+            : "skip_reason" in s && s.skip_reason === "본인 결재" ? "본인 결재" : "결재",
+        when: "acted_at" in s ? s.acted_at : null,
+      };
     case "rejected":
       return { ...base, tone: "bad", state: "반려", when: "acted_at" in s ? s.acted_at : null };
     case "pending":

@@ -73,6 +73,14 @@ export default async function DocPage({
     }
     const lineName = options.lines.find((l) => l.id === doc.line_id)?.name;
     const hasProblem = !!previewError || !doc.line_id || preview.some((p) => p.status === "problem");
+    const noApprover = !hasProblem && !preview.some((p) => p.status === "waiting" && p.step_type === "approve");
+    const { data: lineRow } = doc.line_id
+      ? await supabase.from("approval_lines").select("allow_self_approval").eq("id", doc.line_id).maybeSingle()
+      : { data: null };
+    const holdsStep = preview.some((p) => p.step_type === "approve" && p.assignee_id === me.id && p.note === "기안자 본인");
+    const selfApproval = noApprover && (holdsStep || !!lineRow?.allow_self_approval);
+    const selfBlocked = noApprover && !selfApproval;
+    const hasCoop = preview.some((p) => p.status === "waiting" && p.step_type === "cooperate");
 
     return (
       <>
@@ -100,6 +108,17 @@ export default async function DocPage({
                   ))}
               </ul>
             )}
+            {selfApproval && (
+              <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                이 결재선에는 나 말고 결재할 사람이 없어서 <b>본인 결재</b>로 끝나요
+                {hasCoop ? " (협조는 거친 뒤에 끝나요)" : " (올리는 즉시 결재 완료)"}. 문서에 “본인 결재” 표시가 남아요.
+              </p>
+            )}
+            {selfBlocked && (
+              <p className="mt-3 text-sm text-red-700">
+                이 결재선에는 나 말고 결재할 사람이 없어요. 관리자에게 결재선을 확인해 달라고 해 주세요.
+              </p>
+            )}
             {preview.some((p) => p.status === "problem") && (
               <p className="mt-3 text-sm text-red-700">
                 맡은 사람이 없는 직책이 있어요. 관리자에게 인사발령을 요청하거나 다른 결재선을 골라 주세요.
@@ -113,7 +132,7 @@ export default async function DocPage({
             <SubmitButton className="w-full" confirm="이 결재선으로 결재를 올릴까요?">
               결재 올리기
             </SubmitButton>
-            {hasProblem && <p className="mt-1 text-center text-xs text-red-700">위 문제를 먼저 해결해야 올라가요.</p>}
+            {(hasProblem || selfBlocked) && <p className="mt-1 text-center text-xs text-red-700">위 문제를 먼저 해결해야 올라가요.</p>}
           </form>
           <div className="grid grid-cols-2 gap-2">
             <Link href={`${back}?edit=1`} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 py-2.5 font-medium text-stone-800">
@@ -147,6 +166,7 @@ export default async function DocPage({
         <Badge tone={st.tone}>{st.label}</Badge>
         <Badge>{DOC_TYPE_LABEL[doc.doc_type]}</Badge>
         {doc.is_jeongyeol && <Badge tone="amber">전결</Badge>}
+        {doc.self_approved && <Badge tone="amber">본인 결재</Badge>}
       </div>
       <PageTitle sub={`문서번호 ${doc.doc_no}`}>{doc.title}</PageTitle>
       <Notice msg={sp.msg} error={sp.error} />

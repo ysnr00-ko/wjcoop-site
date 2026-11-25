@@ -46,6 +46,7 @@ export type ApprovalLine = {
   name: string;
   is_default: boolean;
   is_jeongyeol: boolean;
+  allow_self_approval: boolean;
   is_active: boolean;
   sort_order: number;
   steps: LineStep[];

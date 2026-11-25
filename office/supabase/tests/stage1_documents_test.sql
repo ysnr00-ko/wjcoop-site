@@ -342,15 +342,71 @@ select pg_temp.ok(pg_temp.fails($$select public.redraft_document('a0000000-0000-
                   '같은 반려 문서를 두 번 재기안할 수 없다');
 reset role;
 
--- 결재할 사람이 하나도 없는 결재선은 올릴 수 없다 (이사장이 사무국 결재선으로 기안)
+-- 본인 결재 (이사장이 사무국 결재선으로 기안 → 사무국장은 아래 직책이라 건너뛰고 이사장 본인 결재)
 insert into public.assignments (person_id, department_id, position_id, starts_on) values
   ('00000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001', '2026-01-01');
 :p1
 insert into public.documents (id, doc_type, title, department_id, line_id, body) values
   ('a0000000-0000-0000-0000-000000000008', 'proposal', '가짜 자기결재 테스트', 'd0000000-0000-0000-0000-000000000002',
    'f0000000-0000-0000-0000-000000000003', '내용');
-select pg_temp.ok(pg_temp.fails($$select public.submit_document('a0000000-0000-0000-0000-000000000008')$$),
-                  '나 말고 결재할 사람이 없는 결재선으로는 올릴 수 없다 (혼자 결재 완료 방지)');
+select public.submit_document('a0000000-0000-0000-0000-000000000008');
+select pg_temp.ok(pg_temp.doc_status('a0000000-0000-0000-0000-000000000008') = 'approved'
+                  and (select self_approved from public.documents where id = 'a0000000-0000-0000-0000-000000000008'),
+                  '나 말고 결재할 사람이 없는 결재선이면 본인 결재로 바로 끝나고 표시가 남는다');
+select pg_temp.ok(pg_temp.steps('a0000000-0000-0000-0000-000000000008') = '사무국장:skipped 이사장:approved',
+                  '본인 결재는 결재란에 본인 이름으로 결재가 찍힌다');
+select pg_temp.ok(pg_temp.fails($$update public.documents set self_approved = false where id = 'a0000000-0000-0000-0000-000000000008'$$),
+                  '본인 결재 표시는 직접 바꿀 수 없다');
+reset role;
+
+reset role;
+-- 부장(4번)은 부장으로, 팀장(5번)은 팀장으로 되돌린다 (4번의 팀장 겸직은 끝난 채로 둔다)
+update public.assignments set ends_on = null
+ where (person_id = '00000000-0000-0000-0000-000000000004' and position_id = 'e0000000-0000-0000-0000-000000000004')
+    or (person_id = '00000000-0000-0000-0000-000000000005' and position_id = 'e0000000-0000-0000-0000-000000000005');
+:p3
+insert into public.documents (id, doc_type, title, department_id, line_id, body, amount, payee) values
+  ('a0000000-0000-0000-0000-000000000009', 'expense', '가짜 보조금 집행 기록', 'd0000000-0000-0000-0000-000000000003',
+   'f0000000-0000-0000-0000-000000000001', '보조금 사업 소모품', 50000, '가짜상점');
+select public.submit_document('a0000000-0000-0000-0000-000000000009');
+select pg_temp.ok(pg_temp.doc_status('a0000000-0000-0000-0000-000000000009') = 'in_progress'
+                  and pg_temp.steps('a0000000-0000-0000-0000-000000000009') like '%센터장:approved 사무국장:pending%',
+                  '센터장이 센터 전결로 올리면 본인 결재가 찍히고, 협조(사무국장)는 그대로 거친다');
+:p2
+select public.act_on_document('a0000000-0000-0000-0000-000000000009', 'confirm');
+select pg_temp.ok(pg_temp.doc_status('a0000000-0000-0000-0000-000000000009') = 'approved', '협조가 끝나면 본인 결재 문서가 끝난다');
+reset role;
+
+-- =====================================================================
+-- 8. 본인 결재 안전장치 (보안 검토에서 나온 항목)
+-- =====================================================================
+-- 관리자가 단계 없이 결재선을 막 만든 상태
+insert into public.approval_lines (id, department_id, name) values
+  ('f0000000-0000-0000-0000-000000000010', 'd0000000-0000-0000-0000-000000000002', '만드는 중');
+insert into public.approval_lines (id, department_id, name) values
+  ('f0000000-0000-0000-0000-000000000011', 'd0000000-0000-0000-0000-000000000002', '협조만');
+insert into public.approval_line_steps (line_id, seq, position_id, step_type) values
+  ('f0000000-0000-0000-0000-000000000011', 1, 'e0000000-0000-0000-0000-000000000003', 'cooperate');
+insert into public.approval_lines (id, department_id, name, allow_self_approval) values
+  ('f0000000-0000-0000-0000-000000000012', 'd0000000-0000-0000-0000-000000000002', '보조금 기록용', true);
+:p7
+insert into public.documents (id, doc_type, title, department_id, line_id, body, amount, payee) values
+  ('a0000000-0000-0000-0000-000000000010', 'expense', '가짜 큰돈', 'd0000000-0000-0000-0000-000000000002',
+   'f0000000-0000-0000-0000-000000000010', '내역', 99999999, '가짜');
+select pg_temp.ok(pg_temp.fails($$select public.submit_document('a0000000-0000-0000-0000-000000000010')$$),
+                  '단계가 하나도 없는(만드는 중인) 결재선으로는 혼자 끝낼 수 없다');
+update public.documents set line_id = 'f0000000-0000-0000-0000-000000000011' where id = 'a0000000-0000-0000-0000-000000000010';
+select pg_temp.ok(pg_temp.fails($$select public.submit_document('a0000000-0000-0000-0000-000000000010')$$),
+                  '협조만 있는 결재선으로는 혼자 끝낼 수 없다');
+select pg_temp.ok(pg_temp.fails($$update public.approval_lines set allow_self_approval = true$$)
+                  or not exists (select 1 from public.approval_lines where allow_self_approval and name = '협조만'),
+                  '직원은 결재선에 본인 결재 허용을 켤 수 없다');
+update public.documents set line_id = 'f0000000-0000-0000-0000-000000000012', title = '가짜 보조금 기록'
+ where id = 'a0000000-0000-0000-0000-000000000010';
+select public.submit_document('a0000000-0000-0000-0000-000000000010');
+select pg_temp.ok(pg_temp.doc_status('a0000000-0000-0000-0000-000000000010') = 'approved'
+                  and pg_temp.steps('a0000000-0000-0000-0000-000000000010') = '직원:approved',
+                  '관리자가 본인 결재를 허용한 결재선이면 직원도 본인 결재로 끝나고, 결재 칸에 본인 이름이 찍힌다');
 reset role;
 
 \echo '모든 테스트 통과'

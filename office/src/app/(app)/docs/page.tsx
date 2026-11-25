@@ -13,9 +13,9 @@ const TABS = [
 
 type Row = Pick<
   Doc,
-  "id" | "doc_no" | "doc_type" | "status" | "title" | "amount" | "drafter_name" | "created_at" | "submitted_at" | "is_jeongyeol"
+  "id" | "doc_no" | "doc_type" | "status" | "title" | "amount" | "drafter_name" | "created_at" | "submitted_at" | "is_jeongyeol" | "self_approved"
 >;
-const COLS = "id, doc_no, doc_type, status, title, amount, drafter_name, created_at, submitted_at, is_jeongyeol";
+const COLS = "id, doc_no, doc_type, status, title, amount, drafter_name, created_at, submitted_at, is_jeongyeol, self_approved";
 
 export default async function DocsPage({
   searchParams,
@@ -91,6 +91,7 @@ export default async function DocsPage({
                       <Badge tone={st.tone}>{st.label}</Badge>
                       <Badge>{DOC_TYPE_LABEL[r.doc_type]}</Badge>
                       {r.is_jeongyeol && r.status !== "draft" && <Badge tone="amber">전결</Badge>}
+                      {r.self_approved && <Badge tone="amber">본인 결재</Badge>}
                       {coopIds.has(r.id) && <Badge tone="amber">협조</Badge>}
                       <span className="ml-auto text-xs text-stone-500">{r.doc_no ?? "번호 없음"}</span>
                     </div>

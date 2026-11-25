@@ -87,7 +87,21 @@ async function rpc(fd: FormData, fn: string, args: Record<string, unknown>, okTe
 }
 
 export async function submitDoc(fd: FormData) {
-  await rpc(fd, "submit_document", { p_doc: str(fd, "id") }, "결재를 올렸어요. 첫 결재자에게 차례가 갔어요.", "올리지 못했어요.");
+  await requireMember();
+  const supabase = await createClient();
+  const id = str(fd, "id");
+  const { error } = await supabase.rpc("submit_document", { p_doc: id });
+  if (error) go(back(fd), "error", explain(error, "올리지 못했어요."));
+  const { data } = await supabase.from("documents").select("status, self_approved").eq("id", id).maybeSingle();
+  go(
+    back(fd),
+    "msg",
+    data?.status === "approved"
+      ? "본인 결재로 바로 끝났어요."
+      : data?.self_approved
+        ? "본인 결재를 찍었어요. 협조가 끝나면 결재가 완료돼요."
+        : "결재를 올렸어요. 첫 결재자에게 차례가 갔어요.",
+  );
 }
 
 export async function approveDoc(fd: FormData) {

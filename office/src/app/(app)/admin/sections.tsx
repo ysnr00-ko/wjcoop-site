@@ -527,6 +527,7 @@ export function LinesSection({ data, back }: Props) {
                       <span className="font-medium">{l.name}</span>
                       {l.is_default && <Badge tone="emerald">기본</Badge>}
                       {l.is_jeongyeol && <Badge tone="amber">전결</Badge>}
+                      {l.allow_self_approval && <Badge tone="amber">본인 결재 허용</Badge>}
                     </div>
                     {/* 결재 흐름 */}
                     <ol className="flex flex-wrap items-center gap-1 text-sm">
@@ -560,6 +561,18 @@ export function LinesSection({ data, back }: Props) {
                     <details className="mt-3">
                       <summary className="cursor-pointer text-sm text-emerald-800">단계 고치기</summary>
                       <div className="mt-3 space-y-3">
+                        <form action={A.setLineSelfApproval} className="rounded-lg bg-stone-50 p-2 text-sm">
+                          <Back back={back} />
+                          <input type="hidden" name="id" value={l.id} />
+                          <input type="hidden" name="on" value={l.allow_self_approval ? "false" : "true"} />
+                          <p className="mb-2 text-stone-700">
+                            본인 결재 허용: <b>{l.allow_self_approval ? "켜짐" : "꺼짐"}</b>
+                            <span className="block text-xs text-stone-500">
+                              켜면 나 말고 결재할 사람이 없을 때 기안자가 혼자 결재로 끝낼 수 있어요 (보조금 사업 기록용 등).
+                            </span>
+                          </p>
+                          <SubmitButton variant="small">{l.allow_self_approval ? "끄기" : "켜기"}</SubmitButton>
+                        </form>
                         <ul className="space-y-1 text-sm">
                           {l.steps.map((s) => (
                             <li key={s.id} className="flex items-center gap-2">
@@ -657,6 +670,13 @@ export function LinesSection({ data, back }: Props) {
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="is_jeongyeol" className="h-5 w-5" />
               전결 결재선
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" name="allow_self_approval" className="mt-0.5 h-5 w-5" />
+              <span>
+                본인 결재 허용
+                <span className="block text-xs text-stone-500">보조금 사업 기록용처럼 기안자가 혼자 결재로 끝내도 되는 결재선</span>
+              </span>
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="is_default" className="h-5 w-5" />이 부서의 기본 결재선으로
