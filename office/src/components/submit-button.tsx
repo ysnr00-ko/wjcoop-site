@@ -9,17 +9,20 @@ export function SubmitButton({
   variant = "primary",
   confirm,
   className = "",
+  formAction,
 }: {
   children: React.ReactNode;
   variant?: keyof typeof buttonClass;
   confirm?: string;
   className?: string;
+  formAction?: (fd: FormData) => void | Promise<void>;
 }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
       disabled={pending}
+      formAction={formAction}
       className={`${buttonClass[variant]} ${className}`}
       onClick={(e) => {
         if (confirm && !window.confirm(confirm)) e.preventDefault();
