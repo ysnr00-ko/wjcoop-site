@@ -694,7 +694,7 @@ export async function LogSection() {
 
   return (
     <Card>
-      <CardTitle>최근 변경 기록 (100건)</CardTitle>
+      <CardTitle>최근 변경 기록 ({(data ?? []).length}건{(data ?? []).length >= 100 ? ", 최근 100건만 보여요" : ""})</CardTitle>
       <ul className="divide-y divide-stone-100 text-sm">
         {(data ?? []).map((r) => {
           const n = (r.new_data ?? {}) as Record<string, unknown>;

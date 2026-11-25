@@ -30,7 +30,7 @@ export default async function SettingsPage({
   return (
     <>
       <PageTitle sub="관리자만 볼 수 있는 화면이에요.">설정</PageTitle>
-      <nav className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1">
+      <nav className="mb-4 flex flex-wrap gap-2">
         {TABS.map((t) => (
           <Link
             key={t.key}

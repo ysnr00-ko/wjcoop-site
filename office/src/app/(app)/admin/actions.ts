@@ -164,11 +164,19 @@ export async function deletePosition(fd: FormData) {
 }
 
 // ------------------------------------------------------------ 직원 초대 · 발령 · 비활성
-async function sendInvite(email: string) {
-  const admin = createAdminClient();
-  return admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${await siteUrl()}/auth/confirm?next=/set-password`,
-  });
+// 관리자 열쇠가 없거나 메일 발송이 실패해도 화면이 깨지지 않고 안내 문구가 나오도록 오류를 돌려준다
+async function sendInvite(email: string): Promise<{ error: unknown }> {
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: `${await siteUrl()}/auth/confirm?next=/set-password`,
+    });
+    if (error) console.error("초대 메일 실패:", error.message);
+    return { error };
+  } catch (e) {
+    console.error("초대 메일 실패:", e);
+    return { error: e };
+  }
 }
 
 export async function invitePerson(fd: FormData) {
@@ -303,9 +311,20 @@ export async function setPersonActive(fd: FormData) {
   if (!active) await supabase.rpc("admin_sign_out_everywhere", { p_person: id });
   if (p.auth_user_id) {
     // 비활성이면 로그인 자체를 막는다 (풀면 다시 로그인 가능)
-    await createAdminClient().auth.admin.updateUserById(p.auth_user_id, {
-      ban_duration: active ? "none" : "876000h",
-    });
+    let banned = false;
+    try {
+      const { error: bErr } = await createAdminClient().auth.admin.updateUserById(p.auth_user_id, {
+        ban_duration: active ? "none" : "876000h",
+      });
+      banned = !bErr;
+    } catch {
+      banned = false;
+    }
+    // 데이터 접근은 이미 막혔지만(비활성) 로그인 차단 설정은 실패한 경우
+    if (!banned)
+      fail(fd, active
+        ? `${p.name}님을 활성으로 바꿨지만 로그인 허용 설정을 하지 못했어요. 관리자 열쇠 설정을 확인해 주세요.`
+        : `${p.name}님을 비활성으로 바꿔 자료는 볼 수 없게 됐지만, 로그인 차단 설정은 하지 못했어요. 관리자 열쇠 설정을 확인해 주세요.`);
   }
   ok(fd, active ? `${p.name}님을 다시 활성으로 바꿨어요.` : `${p.name}님을 비활성으로 바꿨어요. 기록은 그대로 남아요.`);
 }
@@ -380,10 +399,12 @@ export async function fillExample(fd: FormData) {
     if (existing?.length) fail(fd, "이미 부서가 있어서 예시값을 넣지 않았어요.");
     const { data: root, error } = await supabase.from("departments").insert({ name: "법인", sort_order: 0 }).select("id").single();
     if (error || !root) fail(fd, explain(error, "넣지 못했어요."));
-    await supabase.from("departments").insert([
-      { name: "사무국", parent_id: root.id, sort_order: 1 },
+    // 여러 줄을 한 번에 넣을 때는 모든 줄에 같은 항목을 적어야 한다 (빠진 항목은 기본값이 아니라 빈 값이 됨)
+    const { error: cErr } = await supabase.from("departments").insert([
+      { name: "사무국", parent_id: root.id, is_independent: false, sort_order: 1 },
       { name: "산하센터", parent_id: root.id, is_independent: true, sort_order: 2 },
     ]);
+    if (cErr) fail(fd, explain(cErr, "법인은 넣었지만 아래 부서를 넣지 못했어요."));
     ok(fd, "법인 → 사무국, 법인 → 산하센터(독립 운영)를 넣었어요. 이름은 바꿀 수 있어요.");
   }
 
@@ -399,7 +420,10 @@ export async function fillExample(fd: FormData) {
     const { data: existing } = await supabase.from("positions").select("name");
     const have = new Set((existing ?? []).map((p) => p.name));
     const toAdd = defaults.filter((d) => !have.has(d.name));
-    if (toAdd.length) await supabase.from("positions").insert(toAdd);
+    if (toAdd.length) {
+      const { error } = await supabase.from("positions").insert(toAdd);
+      if (error) fail(fd, explain(error, "직책을 넣지 못했어요."));
+    }
     ok(fd, "직책 예시값을 넣었어요 (이사장·센터장·사무국장·부장·팀장·직원).");
   }
 
@@ -427,9 +451,10 @@ export async function fillExample(fd: FormData) {
         .select("id")
         .single();
       if (error || !line) fail(fd, explain(error, "결재선을 넣지 못했어요. 이미 기본 결재선이 있으면 먼저 지워 주세요."));
-      await supabase
+      const { error: sErr } = await supabase
         .from("approval_line_steps")
         .insert(steps.map(([seq, position, step_type]) => ({ line_id: line.id, seq, position_id: p(position), step_type })));
+      if (sErr) fail(fd, explain(sErr, `'${name}' 결재선의 단계를 넣지 못했어요.`));
     };
     await make("산하센터", "센터 · 전결", { is_default: true, is_jeongyeol: true }, [
       [1, "팀장", "approve"],
