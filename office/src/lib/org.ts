@@ -18,6 +18,7 @@ export type Person = {
   name: string;
   phone: string | null;
   is_admin: boolean;
+  can_view_all_docs: boolean;
   is_active: boolean;
   invited_at: string;
   joined_at: string | null;

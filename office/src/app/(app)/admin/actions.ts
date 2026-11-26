@@ -226,7 +226,12 @@ export async function updatePerson(fd: FormData) {
   if (!name) fail(fd, "이름을 입력해 주세요.");
   const { error } = await supabase
     .from("people")
-    .update({ name, phone: str(fd, "phone") || null, is_admin: fd.get("is_admin") === "on" })
+    .update({
+      name,
+      phone: str(fd, "phone") || null,
+      is_admin: fd.get("is_admin") === "on",
+      can_view_all_docs: fd.get("can_view_all_docs") === "on",
+    })
     .eq("id", str(fd, "id"));
   if (error) fail(fd, explain(error, "고치지 못했어요."));
   ok(fd, "직원 정보를 고쳤어요.");

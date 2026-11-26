@@ -409,4 +409,61 @@ select pg_temp.ok(pg_temp.doc_status('a0000000-0000-0000-0000-000000000010') = '
                   '관리자가 본인 결재를 허용한 결재선이면 직원도 본인 결재로 끝나고, 결재 칸에 본인 이름이 찍힌다');
 reset role;
 
+-- =====================================================================
+-- 9. 모든 부서 문서 보기 (사람마다 켜고 끄기)
+-- =====================================================================
+:p7
+select pg_temp.ok((select count(*) from public.documents where id = 'a0000000-0000-0000-0000-000000000001') = 0,
+                  '설정이 꺼진 직원은 다른 부서 문서를 못 본다');
+select pg_temp.ok(pg_temp.fails($$update public.people set can_view_all_docs = true where email = 'p7@example.com'$$)
+                  or not (select can_view_all_docs from public.people where email = 'p7@example.com'),
+                  '직원이 스스로 모든 부서 문서 보기를 켤 수 없다');
+:p2
+update public.people set can_view_all_docs = true where email = 'p7@example.com';
+:p7
+select pg_temp.ok((select count(*) from public.documents where id = 'a0000000-0000-0000-0000-000000000001') = 1,
+                  '관리자가 켜 주면 다른 부서 문서도 볼 수 있다');
+select pg_temp.ok((select count(*) from public.documents where id = 'a0000000-0000-0000-0000-000000000005') = 0
+                  or pg_temp.doc_status('a0000000-0000-0000-0000-000000000005') <> 'draft',
+                  '모든 부서 문서 보기를 켜도 남의 임시저장 문서는 못 본다');
+reset role;
+-- 관리자라도 꺼져 있으면 자기 부서·결재선 문서만 본다 (사무국장이 없는 센터 결재선으로 올린 문서)
+insert into public.approval_lines (id, department_id, name) values
+  ('f0000000-0000-0000-0000-000000000013', 'd0000000-0000-0000-0000-000000000003', '센터 내부');
+insert into public.approval_line_steps (line_id, seq, position_id, step_type) values
+  ('f0000000-0000-0000-0000-000000000013', 1, 'e0000000-0000-0000-0000-000000000005', 'approve'),
+  ('f0000000-0000-0000-0000-000000000013', 2, 'e0000000-0000-0000-0000-000000000004', 'approve');
+:p6
+insert into public.documents (id, doc_type, title, department_id, line_id, body) values
+  ('a0000000-0000-0000-0000-000000000011', 'proposal', '가짜 센터 내부 문서', 'd0000000-0000-0000-0000-000000000003',
+   'f0000000-0000-0000-0000-000000000013', '내용');
+select public.submit_document('a0000000-0000-0000-0000-000000000011');
+reset role;
+update public.people set can_view_all_docs = true where email = 'p2@example.com';
+:p2
+select pg_temp.ok((select count(*) from public.documents where id = 'a0000000-0000-0000-0000-000000000011') = 1,
+                  '설정이 켜진 관리자는 다른 부서 문서를 본다');
+reset role;
+update public.people set can_view_all_docs = false where email = 'p2@example.com';
+:p2
+select pg_temp.ok((select count(*) from public.documents where id = 'a0000000-0000-0000-0000-000000000011') = 0,
+                  '관리자라도 설정이 꺼져 있으면 결재선에 없는 다른 부서 문서는 못 본다');
+reset role;
+
+-- 변경 기록으로도 못 보게 (관리자, 설정 꺼짐)
+:p2
+select pg_temp.ok((select count(*) from public.audit_log
+                    where table_name = 'documents' and row_id = 'a0000000-0000-0000-0000-000000000011') = 0,
+                  '설정이 꺼진 관리자는 변경 기록으로도 다른 부서 문서 내용을 못 본다');
+select pg_temp.ok((select count(*) from public.audit_log
+                    where table_name = 'document_steps'
+                      and coalesce(new_data, old_data) ->> 'document_id' = 'a0000000-0000-0000-0000-000000000011') = 0,
+                  '설정이 꺼진 관리자는 변경 기록으로 다른 부서 결재 단계도 못 본다');
+select pg_temp.ok((select count(*) from public.audit_log
+                    where table_name = 'documents' and row_id = 'a0000000-0000-0000-0000-000000000006') = 0,
+                  '지워진 남의 임시저장 문서 내용은 변경 기록에서도 안 보인다');
+select pg_temp.ok((select count(*) from public.audit_log where table_name = 'people') > 0,
+                  '관리자는 문서 말고 다른 변경 기록은 그대로 본다');
+reset role;
+
 \echo '모든 테스트 통과'

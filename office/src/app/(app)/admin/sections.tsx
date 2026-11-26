@@ -343,6 +343,7 @@ export function PeopleSection({ data, back }: Props) {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`font-medium ${p.is_active ? "" : "text-stone-400"}`}>{p.name}</span>
                       {p.is_admin && <Badge tone="emerald">관리자</Badge>}
+                      {p.can_view_all_docs && <Badge>모든 부서 문서</Badge>}
                       {!p.is_active ? <Badge tone="red">비활성</Badge> : !p.joined_at ? <Badge tone="amber">초대함 · 아직 안 들어옴</Badge> : null}
                       <span className="ml-auto text-xs text-stone-500">고치기</span>
                     </div>
@@ -372,6 +373,20 @@ export function PeopleSection({ data, back }: Props) {
                         <label className="flex items-center gap-2 text-sm">
                           <input type="checkbox" name="is_admin" defaultChecked={p.is_admin} className="h-5 w-5" />
                           관리자
+                        </label>
+                        <label className="flex items-start gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            name="can_view_all_docs"
+                            defaultChecked={p.can_view_all_docs}
+                            className="mt-0.5 h-5 w-5"
+                          />
+                          <span>
+                            모든 부서 문서 보기
+                            <span className="block text-xs text-stone-500">
+                              끄면 자기 부서(와 아래 부서) 문서, 자기가 결재선에 든 문서만 봐요. 임시저장 문서는 누구도 못 봐요.
+                            </span>
+                          </span>
                         </label>
                         <SubmitButton variant="secondary" className="w-full">
                           저장
